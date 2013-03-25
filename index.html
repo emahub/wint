@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta http-equiv="Content-Language" content="ja" />
+    <meta http-equiv="Content-Style-Type" content="text/css" />
+    <meta http-equiv="Content-Script-Type" content="text/javascript" />
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <script type="text/javascript" src="jquery-1.9.0.min.js"></script>
+    <script type="text/javascript" src="config.js"></script>
+    <!--[if IE]>
+      <script src="http://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <title>WINT</title>
+    <style>    
+    * {
+        margin:0;
+        padding:0;
+    }
+
+    html,body {
+        height:100%;
+        overflow: hidden; /* スクロールバー非表示へ */
+    }
+
+    #content {
+        text-align: center; /* コンテンツ画面を中心に配置 */
+    }
+
+    #footer {
+        line-height:0; /* 二つのspanの縦位置をあわせる */
+    }
+    
+    #footer > span{
+        position: relative; /* スライドさせるアニメーションに必要 */
+    }
+    
+    iframe {
+        border: 0;    
+        background-color:#fff;
+    }
+    </style>
+    <script>
+    var frame = {
+        "iframe": ["#iframe0", "#iframe1"],
+        "img": ["#img0", "#img1"]
+    };
+    
+    var dispId = 0;
+    var dispType = "iframe";
+    var prevType = "iframe";
+    var loadType = "iframe";
+    
+    var contentList = ["dummy"];
+    var i = 0;    // 表示中のコンテンツ番号
+    var duration = 5;    // コンテンツの表示時間
+        
+    function resize(){
+        target = frame[dispType][dispId];
+    
+        scrWidth = $(window).width();
+        scrHeight = $(window).height() - $("#footer").height();
+        $("#content").css({"height": scrHeight});
+        
+        if(dispType == "img"){
+            imgWidth = $(target).width();
+            imgHeight = $(target).height();
+        
+            if( imgWidth/imgHeight < scrWidth/scrHeight ){
+                // スクリーンに対して縦長
+                $(target).css({
+                    "width": imgWidth * scrHeight / imgHeight,
+                    "height": scrHeight
+                });
+            } else {
+                // スクリーンに対して横長;
+                $(target).css({
+                    "width": scrWidth,
+                    "height": imgHeight * scrWidth / imgWidth
+                });
+            }
+        } else if(dispType == "iframe"){
+            $(target).css({
+                "width": scrWidth,
+                "height": scrHeight
+            });
+        }
+        
+        var hspace = scrHeight - $(target).height();
+    
+        $(target).css({
+            "margin-top": hspace > 0 ? hspace / 2 : 0,
+            "margin-bottom": hspace > 0 ? hspace / 2 + 1 : 0
+        });
+    }
+    
+    $(window).load(function(){
+        console.log("window load");
+        resize();
+        $(frame[dispType][dispId]).fadeIn(contentFadeInTime);
+    });
+
+    $(window).resize(function(){
+        resize();
+    });
+    
+    $(document).ready(function(){   
+        /* コンテンツ画面の実装 */
+        function loadContent(data){
+            contentList = data;
+            console.log(contentList);
+        }
+         
+        $.getJSON(contentJsonUrl, null, loadContent);
+        
+        var state = 0;    // 0: load 1: change content 2: go to state0
+        var passedsec = 0;    // 経過時間
+        
+        var timestamp;	// JSON取得時のキャッシュを防ぐためにURLにtimestampを含ませる
+        
+        setInterval(function () {
+            passedsec++;
+
+            if(state == 0){
+                console.log("load");
+                
+                loadType = contentList[i]["type"];
+                
+                $(frame[loadType][1-dispId]).attr('src', contentList[i]["url"]);
+                
+                state = 1;
+                if(i+1==contentList.length){
+                    timestamp = (contentJsonUrl.indexOf("?") == -1 ? "?" : "&")+"timestamp="+(new Date()).getTime();
+                    $.getJSON(contentJsonUrl+timestamp, null, loadContent);
+                }
+            } else if(state == 1){
+                if(passedsec > duration - 1){
+                    state = 2;
+                    passedsec = 0;
+                    
+                    console.log("change");
+                    dispId = 1-dispId;
+                    dispType = loadType;
+                    $(frame[dispType][dispId]).css({
+                        "width": "",
+                        "height": ""
+                    });
+                    resize();
+                    $(frame[dispType][dispId]).delay(contentFadeOutTime).fadeIn(contentFadeInTime);
+                    $(frame[prevType][1-dispId]).fadeOut(contentFadeOutTime);
+                
+                    prevType = dispType;
+                    duration = contentList[i]["duration"];
+
+                    if(i+1==contentList.length) i = 0; else i++;
+                }
+            } else if(state == 2){
+                if(passedsec >= 1){
+                    state = 0;
+                    passedsec = 0;
+                }
+            }
+        }, 1000);
+    
+        /* ニュースバーの実装 */
+        function loadNews(data){
+            newsList = data;
+            console.log(newsList);
+        }
+    
+        var newsList = Array();
+        var newsOrder = 0;
+        var newsElm = ["#news0", "#news1"];
+        var newsState = 0;
+        var newsWidth = $("#footer").width();
+        
+        $.getJSON(newsJsonUrl, null, loadNews);
+        
+        $(newsElm[newsState]).css({left:(newsWidth),display:'block',opacity:'0'}).
+            animate({left:'0',opacity:'1'},newsEffectSpeed,newsEasing);
+                
+        setInterval(function(){
+            $(newsElm[newsState]).animate({left:(-(newsWidth)),opacity:'0'},newsEffectSpeed,newsEasing);
+            
+            newsState = 1 - newsState;
+            
+            $(newsElm[newsState]).text(newsList[newsOrder]);
+            newsOrder++;
+            
+            if(newsOrder == newsList.length){
+                timestamp = (newsJsonUrl.indexOf("?") == -1 ? "?" : "&")+"timestamp="+(new Date()).getTime();
+                $.getJSON(newsJsonUrl+timestamp, null, loadNews);
+                newsOrder = 0;
+            }
+            
+            $(newsElm[newsState]).css({left:(newsWidth),display:'block',opacity:'0'}).
+                animate({left:'0',opacity:'1'},newsEffectSpeed,newsEasing);
+            
+        },newsSwitchDelay);
+    });
+    
+    </script>
+  </head>
+  <body>
+    <div id="container">
+      <div id="content">
+        <iframe id="iframe0" src="boot.html" scrolling="no" style="display:none;"></iframe>
+        <iframe id="iframe1" src="boot.html" scrolling="no" style="display:none;"></iframe>
+        <img id="img0" src="" style="display:none;"/>
+        <img id="img1" src="" style="display:none;"/>
+      </div>
+    </div>
+    <div id="footer">
+      <span id="news0">WINT Information</span>
+      <span id="news1" style="display:none;">news</span>
+    </div>
+  </body>
+</html>

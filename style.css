@@ -1,0 +1,13 @@
+#content {
+    background-color: #222;
+}
+
+#footer {
+    background-color: #000;
+    color: #fff;
+    font-family: "sans-serif";
+    font-size: 24pt;
+    height: 50px;
+    padding-top: 26px;
+    padding-left: 0.5em;
+}

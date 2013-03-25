@@ -1,0 +1,12 @@
+[
+    {
+        "duration": 15,
+        "type": "iframe",
+        "url": "http://localhost/wint/sample.html"
+    }, 
+    {
+        "duration": 15,
+        "type": "img",
+        "url": "http://localhost/wint/sample.png"
+    }
+]
